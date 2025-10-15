@@ -25,7 +25,6 @@
                   proxy_buffering off;
               }
           }
-      notify: Test and Reload Nginx
 
     - name: Create pgAdmin site configuration
       copy:
@@ -46,21 +45,18 @@
                   proxy_buffering off;
               }
           }
-      notify: Test and Reload Nginx
 
     - name: Enable phpMyAdmin site (create symlink)
       file:
         src: /etc/nginx/sites-available/phpmyadmin
         dest: /etc/nginx/sites-enabled/phpmyadmin
         state: link
-      notify: Test and Reload Nginx
 
     - name: Enable pgAdmin site (create symlink)
       file:
         src: /etc/nginx/sites-available/pgadmin
         dest: /etc/nginx/sites-enabled/pgadmin
         state: link
-      notify: Test and Reload Nginx
 
     - name: Test Nginx configuration
       command: nginx -t
@@ -119,14 +115,3 @@
           - "Make sure your DNS A records point to this server:"
           - "  {{ phpmyadmin_domain }} -> {{ ansible_default_ipv4.address }}"
           - "  {{ pgadmin_domain }} -> {{ ansible_default_ipv4.address }}"
-
-  handlers:
-    - name: Test and Reload Nginx
-      block:
-        - name: Test Nginx config
-          command: nginx -t
-        
-        - name: Reload Nginx
-          systemd:
-            name: nginx
-            state: reloaded

@@ -86,7 +86,7 @@
           POSTGRES_PASSWORD: "{{ postgres_password }}"
           PGDATA: /var/lib/postgresql/data/pgdata
         volumes:
-          - /opt/docker/postgres/data:/var/lib/postgresql/data
+          - /opt/docker/postgres/data:/var/lib/postgresql
         healthcheck:
           test: ["CMD-SHELL", "pg_isready -U postgres"]
           interval: 10s
@@ -138,6 +138,10 @@
         port: 8081
         delay: 5
         timeout: 60
+        
+    - name: Get server IP
+      set_fact:
+        server_ip: "{{ ansible_default_ipv4.address }}"
 
     - name: Display connection information
       debug:
@@ -147,9 +151,6 @@
           - "  Host: localhost"
           - "  Port: 3306"
           - "  Root Password: {{ mysql_root_password }}"
-          - "  Database: {{ mysql_database }}"
-          - "  User: {{ mysql_user }}"
-          - "  Password: {{ mysql_password }}"
           - ""
           - "phpMyAdmin:"
           - "  URL: http://{{ ansible_default_ipv4.address }}:8080"
@@ -158,9 +159,7 @@
           - "PostgreSQL:"
           - "  Host: localhost"
           - "  Port: 5432"
-          - "  User: {{ postgres_user }}"
           - "  Password: {{ postgres_password }}"
-          - "  Database: {{ postgres_db }}"
           - ""
           - "pgAdmin:"
           - "  URL: http://{{ ansible_default_ipv4.address }}:8081"
