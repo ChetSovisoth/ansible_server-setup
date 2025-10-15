@@ -123,11 +123,13 @@
         echo "Nginx: $(nginx -v 2>&1)"
         echo "PHP: $(php -v | head -n1)"
         echo "Docker: $(docker --version)"
-        echo "Composer: $(composer --version)"
+        echo "Composer: $(COMPOSER_ALLOW_SUPERUSER=1 composer --version)"
         echo "Node: $(node -v)"
         echo "NPM: $(npm -v)"
       register: verify_output
-      changed_when: false  # This task doesn't change anything
+      changed_when: false
+      environment:
+        COMPOSER_ALLOW_SUPERUSER: "1"
 
     - name: Show verification results
       debug:
