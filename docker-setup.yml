@@ -8,6 +8,7 @@
     pgadmin_email: ""
     pgadmin_password: ""
     docker_network: ""
+    postgres_user: ""
 
   tasks:
     - name: Create Docker network
@@ -81,11 +82,11 @@
         state: started
         restart_policy: unless-stopped
         networks:
-          - name: "{{ docker_network }}"
+          - name: "{{ postgres_user }}"
         ports:
           - "5432:5432"
         env:
-          POSTGRES_USER: "root"
+          POSTGRES_USER: "{{ docker_network }}"
           POSTGRES_PASSWORD: "{{ postgres_password }}"
           PGDATA: /var/lib/postgresql/data/pgdata
         volumes:
@@ -100,7 +101,7 @@
     - name: Run pgAdmin container
       docker_container:
         name: pgadmin
-        image: dpage/pgadmin4:latest
+        image: dpage/pgadmin4:9.8
         state: started
         restart_policy: unless-stopped
         networks:
