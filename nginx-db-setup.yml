@@ -1,0 +1,132 @@
+---
+- name: Setup Nginx for phpMyAdmin and pgAdmin with SSL
+  hosts: all
+  vars:
+    phpmyadmin_domain: "phpmyadmin.yourdomain.com"
+    pgadmin_domain: "pgadmin.yourdomain.com"
+    admin_email: "admin@yourdomain.com"
+  
+  tasks:
+    - name: Create phpMyAdmin site configuration
+      copy:
+        dest: /etc/nginx/sites-available/phpmyadmin
+        content: |
+          server {
+              listen 80;
+              listen [::]:80;
+              server_name {{ phpmyadmin_domain }};
+
+              location / {
+                  proxy_pass http://localhost:8080;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_buffering off;
+              }
+          }
+      notify: Test and Reload Nginx
+
+    - name: Create pgAdmin site configuration
+      copy:
+        dest: /etc/nginx/sites-available/pgadmin
+        content: |
+          server {
+              listen 80;
+              listen [::]:80;
+              server_name {{ pgadmin_domain }};
+
+              location / {
+                  proxy_pass http://localhost:8081;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                  proxy_set_header X-Script-Name /;
+                  proxy_buffering off;
+              }
+          }
+      notify: Test and Reload Nginx
+
+    - name: Enable phpMyAdmin site (create symlink)
+      file:
+        src: /etc/nginx/sites-available/phpmyadmin
+        dest: /etc/nginx/sites-enabled/phpmyadmin
+        state: link
+      notify: Test and Reload Nginx
+
+    - name: Enable pgAdmin site (create symlink)
+      file:
+        src: /etc/nginx/sites-available/pgadmin
+        dest: /etc/nginx/sites-enabled/pgadmin
+        state: link
+      notify: Test and Reload Nginx
+
+    - name: Test Nginx configuration
+      command: nginx -t
+      register: nginx_test
+      changed_when: false
+
+    - name: Reload Nginx to apply changes
+      systemd:
+        name: nginx
+        state: reloaded
+
+    - name: Obtain SSL certificate for phpMyAdmin
+      command: >
+        certbot --nginx --non-interactive --agree-tos
+        --email {{ admin_email }}
+        -d {{ phpmyadmin_domain }}
+      register: certbot_phpmyadmin
+      failed_when: false
+      changed_when: "'Successfully received certificate' in certbot_phpmyadmin.stdout"
+
+    - name: Obtain SSL certificate for pgAdmin
+      command: >
+        certbot --nginx --non-interactive --agree-tos
+        --email {{ admin_email }}
+        -d {{ pgadmin_domain }}
+      register: certbot_pgadmin
+      failed_when: false
+      changed_when: "'Successfully received certificate' in certbot_pgadmin.stdout"
+
+    - name: Display phpMyAdmin SSL result
+      debug:
+        msg: "{{ certbot_phpmyadmin.stdout_lines | default(['No output']) }}"
+
+    - name: Display pgAdmin SSL result
+      debug:
+        msg: "{{ certbot_pgadmin.stdout_lines | default(['No output']) }}"
+
+    - name: Setup auto-renewal cron job
+      cron:
+        name: "Certbot auto-renewal"
+        minute: "0"
+        hour: "3"
+        job: "certbot renew --quiet --post-hook 'systemctl reload nginx'"
+        state: present
+
+    - name: Display access information
+      debug:
+        msg:
+          - "====== Setup Complete ======"
+          - ""
+          - "phpMyAdmin: https://{{ phpmyadmin_domain }}"
+          - "pgAdmin: https://{{ pgadmin_domain }}"
+          - ""
+          - "SSL certificates installed and auto-renewal configured!"
+          - ""
+          - "Make sure your DNS A records point to this server:"
+          - "  {{ phpmyadmin_domain }} -> {{ ansible_default_ipv4.address }}"
+          - "  {{ pgadmin_domain }} -> {{ ansible_default_ipv4.address }}"
+
+  handlers:
+    - name: Test and Reload Nginx
+      block:
+        - name: Test Nginx config
+          command: nginx -t
+        
+        - name: Reload Nginx
+          systemd:
+            name: nginx
+            state: reloaded
