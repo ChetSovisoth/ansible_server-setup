@@ -1,0 +1,134 @@
+---
+- name: Setup web server environment
+  hosts: all  # Changed from webservers
+  # become: true
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600  # Only update if cache is older than 1 hour
+
+    - name: Install common packages
+      apt:
+        name:
+          - curl
+          - git
+          - unzip
+          - software-properties-common
+          - ca-certificates
+          - lsb-release
+          - gnupg
+          - apt-transport-https
+        state: present
+
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+
+    - name: Start and enable Nginx
+      systemd:
+        name: nginx
+        enabled: yes
+        state: started
+
+    - name: Install Certbot
+      apt:
+        name: python3-certbot-nginx 
+        state: present
+
+    - name: Install PHP and extensions
+      apt:
+        name:
+          - php
+          - php-fpm
+          - php-cli
+          - php-mbstring
+          - php-xml
+          - php-curl
+          - php-zip
+          - php-mysql
+          - php-pgsql
+        state: present
+
+    # Better Docker installation
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+
+    - name: Install Docker CE
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+
+    - name: Enable and start Docker
+      systemd:
+        name: docker
+        enabled: yes
+        state: started
+
+    - name: Add user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    # Better Composer installation
+    - name: Download Composer installer
+      get_url:
+        url: https://getcomposer.org/installer
+        dest: /tmp/composer-setup.php
+        mode: '0755'
+
+    - name: Install Composer globally
+      command: php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
+      args:
+        creates: /usr/local/bin/composer
+
+    - name: Remove Composer installer
+      file:
+        path: /tmp/composer-setup.php
+        state: absent
+
+    # Better Node.js installation
+    - name: Add NodeSource GPG key
+      apt_key:
+        url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+        state: present
+
+    - name: Add NodeSource repository for Node 22
+      apt_repository:
+        repo: "deb https://deb.nodesource.com/node_22.x nodistro main"
+        state: present
+
+    - name: Install Node.js and npm
+      apt:
+        name: nodejs
+        state: present
+        update_cache: yes
+
+    - name: Verify installations
+      shell: |
+        echo "Nginx: $(nginx -v 2>&1)"
+        echo "PHP: $(php -v | head -n1)"
+        echo "Docker: $(docker --version)"
+        echo "Composer: $(composer --version)"
+        echo "Node: $(node -v)"
+        echo "NPM: $(npm -v)"
+      register: verify_output
+      changed_when: false  # This task doesn't change anything
+
+    - name: Show verification results
+      debug:
+        msg: "{{ verify_output.stdout_lines }}"

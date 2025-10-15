@@ -1,0 +1,172 @@
+---
+- name: Docker Container Setup - MySQL with phpMyAdmin and PostgreSQL with pgAdmin
+  hosts: all
+  # become: yes
+  vars:
+    mysql_root_password: ""
+    postgres_password: ""
+    pgadmin_email: ""
+    pgadmin_password: ""
+    docker_network: ""
+
+  tasks:
+    - name: Create Docker network
+      docker_network:
+        name: "{{ docker_network }}"
+        state: present
+
+    - name: Create directory for MySQL data
+      file:
+        path: /opt/docker/mysql/data
+        state: directory
+        mode: '0755'
+
+    - name: Create directory for PostgreSQL data
+      file:
+        path: /opt/docker/postgres/data
+        state: directory
+        mode: '0755'
+
+    - name: Create directory for pgAdmin data
+      file:
+        path: /opt/docker/pgadmin/data
+        state: directory
+        mode: '0755'
+
+    # MySQL Container
+    - name: Run MySQL container
+      docker_container:
+        name: mysql
+        image: mysql:latest
+        state: started
+        restart_policy: unless-stopped
+        networks:
+          - name: "{{ docker_network }}"
+        ports:
+          - "3306:3306"
+        env:
+          MYSQL_ROOT_PASSWORD: "{{ mysql_root_password }}"
+        volumes:
+          - /opt/docker/mysql/data:/var/lib/mysql
+        healthcheck:
+          test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+
+    # phpMyAdmin Container
+    - name: Run phpMyAdmin container
+      docker_container:
+        name: phpmyadmin
+        image: phpmyadmin:latest
+        state: started
+        restart_policy: unless-stopped
+        networks:
+          - name: "{{ docker_network }}"
+        ports:
+          - "8080:80"
+        env:
+          PMA_HOST: mysql
+          PMA_PORT: "3306"
+          MYSQL_ROOT_PASSWORD: "{{ mysql_root_password }}"
+          UPLOAD_LIMIT: "300M"
+        depends_on:
+          - mysql
+
+    # PostgreSQL Container
+    - name: Run PostgreSQL container
+      docker_container:
+        name: postgres
+        image: postgres:latest
+        state: started
+        restart_policy: unless-stopped
+        networks:
+          - name: "{{ docker_network }}"
+        ports:
+          - "5432:5432"
+        env:
+          POSTGRES_PASSWORD: "{{ postgres_password }}"
+          PGDATA: /var/lib/postgresql/data/pgdata
+        volumes:
+          - /opt/docker/postgres/data:/var/lib/postgresql/data
+        healthcheck:
+          test: ["CMD-SHELL", "pg_isready -U postgres"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+
+    # pgAdmin Container
+    - name: Run pgAdmin container
+      docker_container:
+        name: pgadmin
+        image: dpage/pgadmin4:latest
+        state: started
+        restart_policy: unless-stopped
+        networks:
+          - name: "{{ docker_network }}"
+        ports:
+          - "8081:80"
+        env:
+          PGADMIN_DEFAULT_EMAIL: "{{ pgadmin_email }}"
+          PGADMIN_DEFAULT_PASSWORD: "{{ pgadmin_password }}"
+          PGADMIN_CONFIG_SERVER_MODE: "False"
+        volumes:
+          - /opt/docker/pgadmin/data:/var/lib/pgadmin
+        depends_on:
+          - postgres
+
+    - name: Wait for MySQL to be ready
+      wait_for:
+        host: localhost
+        port: 3306
+        delay: 5
+        timeout: 60
+
+    - name: Wait for PostgreSQL to be ready
+      wait_for:
+        host: localhost
+        port: 5432
+        delay: 5
+        timeout: 60
+
+    - name: Wait for phpMyAdmin to be ready
+      wait_for:
+        host: localhost
+        port: 8080
+        delay: 5
+        timeout: 60
+
+    - name: Wait for pgAdmin to be ready
+      wait_for:
+        host: localhost
+        port: 8081
+        delay: 5
+        timeout: 60
+
+    - name: Display connection information
+      debug:
+        msg:
+          - "====== Connection Information ======"
+          - "MySQL:"
+          - "  Host: localhost"
+          - "  Port: 3306"
+          - "  Root Password: {{ mysql_root_password }}"
+          - "  Database: {{ mysql_database }}"
+          - "  User: {{ mysql_user }}"
+          - "  Password: {{ mysql_password }}"
+          - ""
+          - "phpMyAdmin:"
+          - "  URL: http://{{ ansible_default_ipv4.address }}:8080"
+          - "  Login with MySQL credentials"
+          - ""
+          - "PostgreSQL:"
+          - "  Host: localhost"
+          - "  Port: 5432"
+          - "  User: {{ postgres_user }}"
+          - "  Password: {{ postgres_password }}"
+          - "  Database: {{ postgres_db }}"
+          - ""
+          - "pgAdmin:"
+          - "  URL: http://{{ ansible_default_ipv4.address }}:8081"
+          - "  Email: {{ pgadmin_email }}"
+          - "  Password: {{ pgadmin_password }}"
