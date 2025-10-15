@@ -70,8 +70,6 @@
           PMA_PORT: "3306"
           MYSQL_ROOT_PASSWORD: "{{ mysql_root_password }}"
           UPLOAD_LIMIT: "300M"
-        depends_on:
-          - mysql
 
     # PostgreSQL Container
     - name: Run PostgreSQL container
@@ -112,8 +110,6 @@
           PGADMIN_CONFIG_SERVER_MODE: "False"
         volumes:
           - /opt/docker/pgadmin/data:/var/lib/pgadmin
-        depends_on:
-          - postgres
 
     - name: Wait for MySQL to be ready
       wait_for:
